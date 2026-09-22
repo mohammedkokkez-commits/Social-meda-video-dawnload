@@ -24,6 +24,14 @@ logger = logging.getLogger(__name__)
 
 URL_REGEX = re.compile(r"https?://\S+")
 
+COMMON_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 "
+        "Mobile/15E148 Safari/604.1"
+    )
+}
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -50,6 +58,10 @@ def download_video(url: str, out_dir: str) -> str:
         "no_warnings": True,
         "noplaylist": True,
         "max_filesize": MAX_FILE_SIZE_MB * 1024 * 1024,
+        "http_headers": COMMON_HEADERS,
+        "extractor_args": {
+            "tiktok": {"api_hostname": ["api22-normal-c-useast2a.tiktokv.com"]}
+        },
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -76,7 +88,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
             if file_size_mb > MAX_FILE_SIZE_MB:
                 await status_msg.edit_text(
-                    f"⚠️ حجم الفيديو ({file_size_mb:.1f} MB) أكبر من الحد "
+                    f"⚠ حجم الفيديو ({file_size_mb:.1f} MB) أكبر من الحد "
                     f"المسموح ({MAX_FILE_SIZE_MB} MB)."
                 )
                 return
@@ -88,12 +100,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except yt_dlp.utils.DownloadError as e:
         logger.error(f"Download error: {e}")
+        short_error = str(e).splitlines()[-1][:300]
         await status_msg.edit_text(
-            "❌ تعذر تحميل الفيديو. تأكد أن الرابط صحيح والمنصة مدعومة."
+            "❌ تعذر تحميل الفيديو.\n\n"
+            f"تفاصيل تقنية:\n{short_error}"
         )
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        await status_msg.edit_text("❌ حدث خطأ غير متوقع، حاول مرة أخرى.")
+        short_error = str(e)[:300]
+        await status_msg.edit_text(
+            f"❌ حدث خطأ غير متوقع.\n\nتفاصيل:\n{short_error}"
+        )
 
 
 def main():
